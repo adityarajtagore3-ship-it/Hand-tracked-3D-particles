@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Interactive Hand-Tracked 3D Particles</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<video id="webcam" style="display:none;" autoplay></video>
+
+<!-- Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<!-- Main JS -->
+<script src="js/app.js"></script>
+</body>
+</html>
