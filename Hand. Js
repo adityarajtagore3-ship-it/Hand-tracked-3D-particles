@@ -1,0 +1,143 @@
+// === Global variables ===
+let scene, camera, renderer;
+let particles = [];
+let particleGroup = new THREE.Group();
+let particleShapes = ['sphere', 'heart', 'star', 'saturn', 'firework'];
+let currentShape = 0;
+let particleCount = 300;
+
+// Initialize
+init();
+animate();
+
+// === Initialize Scene ===
+function init() {
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  camera.position.z = 7;
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(particleGroup);
+
+  createParticles(particleShapes[currentShape]);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // === MediaPipe Hands ===
+  const videoElement = document.getElementById('webcam');
+  const hands = new Hands({locateFile: (file) => {
+    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+  }});
+
+  hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.7,
+    minTrackingConfidence: 0.5
+  });
+
+  hands.onResults(onHandResults);
+
+  const cameraMP = new Camera(videoElement, {
+    onFrame: async () => { await hands.send({image: videoElement}); },
+    width: 640,
+    height: 480
+  });
+  cameraMP.start();
+}
+
+// === Create particles based on shape ===
+function createParticles(shape) {
+  particleGroup.clear();
+  particles = [];
+
+  for(let i=0; i<particleCount; i++){
+    let geo;
+    switch(shape){
+      case 'heart': geo = createHeartGeometry(); break;
+      case 'star': geo = createStarGeometry(); break;
+      case 'saturn': geo = createSaturnGeometry(); break;
+      case 'firework': geo = createFireworkGeometry(); break;
+      default: geo = new THREE.SphereGeometry(0.05, 6, 6);
+    }
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(Math.random(), Math.random(), Math.random()),
+      roughness: 0.5,
+      metalness: 0.2
+    });
+
+    const particle = new THREE.Mesh(geo, mat);
+    particle.position.set((Math.random()-0.5)*6, (Math.random()-0.5)*6, (Math.random()-0.5)*6);
+    particle.scale.setScalar(Math.random()*0.5 + 0.2);
+    particles.push(particle);
+    particleGroup.add(particle);
+  }
+
+  // Lights
+  const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+  scene.add(ambient);
+  const pointLight = new THREE.PointLight(0xffffff, 1);
+  pointLight.position.set(5,5,5);
+  scene.add(pointLight);
+}
+
+// === Custom Geometries ===
+function createHeartGeometry() {
+  const shape = new THREE.Shape();
+  shape.moveTo(0,0);
+  shape.bezierCurveTo(0,0.5, -0.5,0.5, -0.5,0);
+  shape.bezierCurveTo(-0.5,-0.5,0,-0.7,0, -0.5);
+  shape.bezierCurveTo(0,-0.7,0.5,-0.5,0.5,0);
+  shape.bezierCurveTo(0.5,0.5,0,0.5,0,0);
+  return new THREE.ExtrudeGeometry(shape,{ depth:0.05, bevelEnabled:true, bevelSegments:1, steps:1, bevelSize:0.02, bevelThickness:0.02 });
+}
+
+function createStarGeometry(){ return new THREE.TetrahedronGeometry(0.1,0); }
+function createSaturnGeometry(){ return new THREE.TorusGeometry(0.1,0.03,16,100); }
+function createFireworkGeometry(){ return new THREE.IcosahedronGeometry(0.08,0); }
+
+// === Hand Gesture Control ===
+function onHandResults(results) {
+  if(results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+    const hand = results.multiHandLandmarks[0];
+    const thumbTip = hand[4], indexTip = hand[8], pinkyTip = hand[20];
+
+    // Particle size control (thumb-index distance)
+    const distance = Math.sqrt(Math.pow(thumbTip.x-indexTip.x,2)+Math.pow(thumbTip.y-indexTip.y,2));
+    particles.forEach(p => { p.scale.setScalar(0.2 + distance*1.5); });
+
+    // Shape switch (hand up)
+    if(hand[0].y < 0.3){
+      currentShape = (currentShape + 1) % particleShapes.length;
+      createParticles(particleShapes[currentShape]);
+    }
+
+    // Color change (hand X position)
+    const colorFactor = hand[0].x;
+    particles.forEach(p => { p.material.color.setHSL((Math.random()+colorFactor)%1,0.7,0.5); });
+
+    // Expansion for open hand (thumb-pinky distance)
+    const expansion = Math.sqrt(Math.pow(thumbTip.x-pinkyTip.x,2)+Math.pow(thumbTip.y-pinkyTip.y,2));
+    particles.forEach(p => {
+      p.position.x += (Math.random()-0.5)*expansion*0.5;
+      p.position.y += (Math.random()-0.5)*expansion*0.5;
+      p.position.z += (Math.random()-0.5)*expansion*0.5;
+    });
+  }
+}
+
+// === Animate Scene ===
+function animate(){
+  requestAnimationFrame(animate);
+  particleGroup.rotation.y += 0.002;
+  particleGroup.rotation.x += 0.001;
+  renderer.render(scene,camera);
+}
